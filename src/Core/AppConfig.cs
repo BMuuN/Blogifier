@@ -8,8 +8,6 @@ namespace Core
 {
     public static class AppConfig
     {
-        public static IList<string> EmbeddedThemes { get; set; }
-
         public static IEnumerable<Assembly> GetAssemblies(bool includeApp = false)
         {
             var assemblies = new List<Assembly>();
@@ -42,17 +40,11 @@ namespace Core
 
         public static void SetSettings(AppItem app)
         {
-            AppSettings.Title = app.Title;
-            AppSettings.Description = app.Description;
-            AppSettings.Logo = app.Logo;
             AppSettings.Avatar = app.Avatar;
-            AppSettings.Cover = app.Cover;
-            AppSettings.Theme = app.Theme;
-            AppSettings.ItemsPerPage = app.ItemsPerPage;
-            AppSettings.ImportTypes = app.ImportTypes;
-            AppSettings.ImageExtensions = app.ImageExtensions;
-            AppSettings.UseDescInPostList = app.UseDescInPostList;
             AppSettings.DemoMode = app.DemoMode;
+            AppSettings.ImageExtensions = app.ImageExtensions;
+            AppSettings.ImportTypes = app.ImportTypes;
+            AppSettings.SeedData = app.SeedData;
         }
     }
 }

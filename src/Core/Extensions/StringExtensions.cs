@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Markdig;
+using System;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -40,7 +41,6 @@ namespace Core
         /// <summary>
         /// Converts title to valid URL slug
         /// </summary>
-        /// <param name="str">Title</param>
         /// <returns>Slug</returns>
 		public static string ToSlug(this string title)
         {
@@ -73,6 +73,16 @@ namespace Core
             return str.Length > 300 ? str.Substring(0, 300) : str;
         }
 
+        public static string MdToHtml(this string str)
+        {
+            var mpl = new MarkdownPipelineBuilder()
+                .UsePipeTables()
+                .UseAdvancedExtensions()
+                .Build();
+
+            return Markdown.ToHtml(str, mpl);
+        }
+
         public static bool Contains(this string source, string toCheck, StringComparison comp)
         {
             return source.IndexOf(toCheck, comp) >= 0;
@@ -91,6 +101,20 @@ namespace Core
                 }
             }
             return false;
+        }
+
+        // true if string is valid email address
+        public static bool IsEmail(this string str)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(str);
+                return addr.Address == str;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static string ReplaceIgnoreCase(this string str, string search, string replacement)
@@ -211,6 +235,25 @@ namespace Core
             }
 
             return text;
+        }
+
+        public static string SanitizePath(this string str)
+        {
+            str = str.Replace("%2E", ".").Replace("%2F", "/");
+
+            if (str.Contains("..") || str.Contains("//"))
+                throw new ApplicationException("Invalid directory path");
+
+            return str;
+        }
+
+        public static string SanitizeFileName(this string str)
+        {
+            str = str.SanitizePath();
+
+            //TODO: add filename specific validation here
+
+            return str;
         }
 
         #endregion

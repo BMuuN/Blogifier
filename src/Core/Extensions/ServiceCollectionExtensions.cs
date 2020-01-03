@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,9 +21,8 @@ namespace Core.Extensions
             services.Configure<T>(section);
             services.AddTransient<IAppService<T>>(provider =>
             {
-                var environment = provider.GetService<IHostingEnvironment>();
                 var options = provider.GetService<IOptionsMonitor<T>>();
-                return new AppService<T>(environment, options, section.Key);
+                return new AppService<T>(options);
             });
         }
 
@@ -38,6 +38,7 @@ namespace Core.Extensions
             services.AddTransient<IImportService, ImportService>();
             services.AddTransient<INotificationService, NotificationService>();
             services.AddTransient<IWebService, WebService>();
+            services.AddTransient<IEmailService, SendGridService>();
 
             services.AddTransient<UserManager<AppUser>>();
 
@@ -48,32 +49,11 @@ namespace Core.Extensions
         {
             try
             {
-                services.Configure<RazorViewEngineOptions>(options =>
+                services.Configure<MvcRazorRuntimeCompilationOptions>(options =>
                 {
                     foreach (var assembly in AppConfig.GetAssemblies(true))
                     {
                         var fileProvider = new EmbeddedFileProvider(assembly, assembly.GetName().Name);
-
-                        // load themes from embedded provider
-                        var content = fileProvider.GetDirectoryContents("");
-                        if (content.Exists)
-                        {
-                            foreach (var item in content)
-                            {
-                                if (item.Name.StartsWith("Views.Themes"))
-                                {
-                                    if (AppConfig.EmbeddedThemes == null)
-                                        AppConfig.EmbeddedThemes = new List<string>();
-
-                                    var ar = item.Name.Split('.');
-                                    if(ar.Length > 2 && !AppConfig.EmbeddedThemes.Contains(ar[2]))
-                                    {
-                                        AppConfig.EmbeddedThemes.Add(ar[2]);
-                                    }
-                                }
-                            }
-                        }
-
                         options.FileProviders.Add(fileProvider);
                     }
                 });

@@ -14,7 +14,7 @@ namespace Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "2.1.3-rtm-32065");
+                .HasAnnotation("ProductVersion", "2.1.4-rtm-31024");
 
             modelBuilder.Entity("Core.Data.AppUser", b =>
                 {
@@ -138,6 +138,22 @@ namespace Core.Migrations
                     b.ToTable("BlogPosts");
                 });
 
+            modelBuilder.Entity("Core.Data.CustomField", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd();
+
+                    b.Property<int>("AuthorId");
+
+                    b.Property<string>("Content");
+
+                    b.Property<string>("Name");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CustomFields");
+                });
+
             modelBuilder.Entity("Core.Data.HtmlWidget", b =>
                 {
                     b.Property<int>("Id")
@@ -153,7 +169,19 @@ namespace Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("HtmlWidtes");
+                    b.ToTable("HtmlWidgets");
+                });
+
+            modelBuilder.Entity("Core.Data.Newsletter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd();
+
+                    b.Property<string>("Email");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Newsletters");
                 });
 
             modelBuilder.Entity("Core.Data.Notification", b =>

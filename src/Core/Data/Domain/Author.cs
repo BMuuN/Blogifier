@@ -7,10 +7,11 @@ namespace Core.Data
     {
         public Author() { }
 
+        /// <summary>
+        /// Author ID
+        /// </summary>
         public int Id { get; set; }
 
-        [StringLength(160)]
-        public string AppUserId { get; set; }
         [StringLength(160)]
         public string AppUserName { get; set; }
         [EmailAddress]

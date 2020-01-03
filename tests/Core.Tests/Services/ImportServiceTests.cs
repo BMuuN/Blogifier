@@ -66,7 +66,7 @@ namespace Core.Tests.Services
             _unitOfWork.Setup(x => x.BlogPosts).Returns(_postsRepository.Object);
 
             _authorRepository
-                .Setup(x => x.GetItem(It.IsAny<Expression<Func<Author, bool>>>()))
+                .Setup(x => x.GetItem(It.IsAny<Expression<Func<Author, bool>>>(), false))
                 .Returns(Task.FromResult(new Author
                 {
                     Id = 1,
@@ -105,14 +105,9 @@ namespace Core.Tests.Services
             var options = new DbContextOptionsBuilder<AppDbContext>()
                 .UseInMemoryDatabase(dbName).Options;
 
-            //AppSettings.DbOptions = options => options.UseInMemoryDatabase("abc");
-
-            var context = new AppDbContext(options);
-
-            
+            var context = new AppDbContext(options);           
 
             //context.Seed()
-
             //context.Users.Add(new AppUser { Id = "admin", UserName = "admin" });
             //context.SaveChanges();
 

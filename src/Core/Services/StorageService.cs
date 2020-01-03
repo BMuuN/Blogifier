@@ -2,6 +2,7 @@
 using Core.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,8 +28,14 @@ namespace Core.Services
 
         IList<string> GetAssets(string path);
         IList<string> GetThemes();
+        bool SelectTheme(string theme);
 
-        Task<IEnumerable<AssetItem>> Find(Func<AssetItem, bool> predicate, Pager pager, string path = "");
+        string GetHtmlTemplate(string template);
+
+        string GetThemeData(string theme);
+        Task SaveThemeData(ThemeDataModel model, bool isActive);
+
+        Task<IEnumerable<AssetItem>> Find(Func<AssetItem, bool> predicate, Pager pager, string path = "", bool sanitize = false);
 
         Task Reset();
     }
@@ -108,14 +115,136 @@ namespace Core.Services
         public IList<string> GetThemes()
         {
             var items = new List<string>();
-            var dir = Path.Combine(GetAppRoot(), $"Views{_separator}Themes");
+            var dir = Path.Combine(GetAppRoot(), $"wwwroot{_separator}themes");
             try
             {
                 foreach (string d in Directory.GetDirectories(dir))
-                    items.Add(Path.GetFileName(d));
+                {
+                    if(!d.EndsWith("_active"))
+                        items.Add(Path.GetFileName(d));
+                }
             }
             catch { }
             return items;
+        }
+
+        public bool SelectTheme(string theme)
+        {
+            var dir = Path.Combine(GetAppRoot(), $"wwwroot{_separator}themes");
+            string temp = $"{dir}{_separator}_temp";
+            string active = $"{dir}{_separator}_active";
+            string source = $"{dir}{_separator}{theme}";
+
+            try
+            {
+                // backup
+                if (Directory.Exists(active))
+                    Directory.Move(active, temp);
+
+                Directory.CreateDirectory(active);
+
+                CopyFilesRecursively(new DirectoryInfo(source), new DirectoryInfo(active));
+
+                Directory.Delete(temp, true);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    // restore and cleanup
+                    if (Directory.Exists(temp))
+                    {
+                        if (Directory.Exists(active))
+                            Directory.Delete(active, true);
+
+                        Directory.Move(temp, active);
+                    }
+                }
+                catch { }
+                
+                _logger.LogError($"Error replacing theme in the file system: {ex.Message}");
+                return false;
+            }
+        }
+
+        static void CopyFilesRecursively(DirectoryInfo source, DirectoryInfo target)
+        {
+            foreach (DirectoryInfo dir in source.GetDirectories())
+                CopyFilesRecursively(dir, target.CreateSubdirectory(dir.Name));
+            foreach (FileInfo file in source.GetFiles())
+                file.CopyTo(Path.Combine(target.FullName, file.Name));
+        }
+
+        public string GetThemeData(string theme)
+        {
+            string jsonFile = $"{AppSettings.WebRootPath}{_separator}themes{_separator}{theme}{_separator}assets{_separator}{Constants.ThemeDataFile}";
+            if (File.Exists(jsonFile))
+            {
+                using (StreamReader r = new StreamReader(jsonFile))
+                {
+                    return r.ReadToEnd();
+                }
+            }
+            return "";
+        }
+
+        public async Task SaveThemeData(ThemeDataModel model, bool isActive)
+        {
+            if (!GetThemes().Contains(model.Theme))
+            {
+                var msg = $"Theme \"{model.Theme}\" does not exist";
+                _logger.LogError(msg);
+                throw new ApplicationException(msg);
+            }
+            try
+            {
+                var tmpObj = JContainer.Parse(model.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                throw new ApplicationException(ex.Message);
+            }
+            string jsonFile = $"{AppSettings.WebRootPath}{_separator}themes{_separator}{model.Theme}{_separator}assets{_separator}{Constants.ThemeDataFile}";
+            if (File.Exists(jsonFile))
+            {
+                File.Delete(jsonFile);
+                File.WriteAllText(jsonFile, model.Data);
+            }
+            if (isActive)
+            {
+                jsonFile = $"{AppSettings.WebRootPath}{_separator}themes{_separator}_active{_separator}assets{_separator}{Constants.ThemeDataFile}";
+                if (File.Exists(jsonFile))
+                {
+                    File.Delete(jsonFile);
+                    File.WriteAllText(jsonFile, model.Data);
+                }
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public string GetHtmlTemplate(string template)
+        {
+            string content = "<p>Not found</p>";
+            try
+            {
+                var path = AppSettings.WebRootPath ?? Path.Combine(GetAppRoot(), "wwwroot");
+                path = Path.Combine(path, "templates");
+                path = Path.Combine(path, $"{template}.html");
+
+                if (File.Exists(path))
+                {
+                    content = File.ReadAllText(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            return content;
         }
 
         public async Task<AssetItem> UploadFormFile(IFormFile file, string root, string path = "")
@@ -213,7 +342,7 @@ namespace Core.Services
             }
         }
 
-        public async Task<IEnumerable<AssetItem>> Find(Func<AssetItem, bool> predicate, Pager pager, string path = "")
+        public async Task<IEnumerable<AssetItem>> Find(Func<AssetItem, bool> predicate, Pager pager, string path = "", bool sanitize = false)
         {
             var skip = pager.CurrentPage * pager.ItemsPerPage - pager.ItemsPerPage;
             var files = GetAssets(path);
@@ -225,6 +354,14 @@ namespace Core.Services
             pager.Configure(items.Count);
 
             var page = items.Skip(skip).Take(pager.ItemsPerPage).ToList();
+
+            if (sanitize)
+            {
+                foreach (var p in page)
+                {
+                    p.Path = p.Path.Replace(Location, "");
+                }
+            }
 
             return await Task.FromResult(page);
         }
@@ -256,6 +393,7 @@ namespace Core.Services
 
         public void DeleteFile(string path)
         {
+            path = path.SanitizeFileName();
             path = path.Replace("/", _separator);
             path = path.Replace($"{_uploadFolder}{_separator}{_blogSlug}{_separator}", "");
             File.Delete(GetFullPath(path));
@@ -290,6 +428,8 @@ namespace Core.Services
 
         void VerifyPath(string path)
         {
+            path = path.SanitizePath();
+
             if (!string.IsNullOrEmpty(path))
             {
                 var dir = Path.Combine(Location, path);
@@ -332,7 +472,7 @@ namespace Core.Services
                 Random rnd = new Random();
                 fileName = fileName.Replace("mceclip0", rnd.Next(100000, 999999).ToString());
             }
-            return fileName;
+            return fileName.SanitizeFileName();
         }
 
         string GetUrl(string path, string root)
@@ -403,26 +543,29 @@ namespace Core.Services
 
             title = title.Replace(" ", "-");
 
-            return title.Replace("/", "");
+            return title.Replace("/", "").SanitizeFileName();
         }
 
         List<AssetItem> MapFilesToAssets(IList<string> assets)
         {
             var items = new List<AssetItem>();
 
-            foreach (var asset in assets)
+            if (assets != null && assets.Any())
             {
-                // Azure puts web sites under "wwwroot" folder
-                var path = asset.Replace($"wwwroot{_separator}wwwroot", "wwwroot", StringComparison.OrdinalIgnoreCase);
+                foreach (var asset in assets)
+                {
+                    // Azure puts web sites under "wwwroot" folder
+                    var path = asset.Replace($"wwwroot{_separator}wwwroot", "wwwroot", StringComparison.OrdinalIgnoreCase);
 
-                items.Add(new AssetItem {
-                    Path = asset,
-                    Url = pathToUrl(path),
-                    Title = pathToTitle(path),
-                    Image = pathToImage(path)
-                });
+                    items.Add(new AssetItem
+                    {
+                        Path = asset,
+                        Url = pathToUrl(path),
+                        Title = pathToTitle(path),
+                        Image = pathToImage(path)
+                    });
+                }
             }
-
             return items;
         }
 

@@ -16,7 +16,7 @@ namespace Upgrade
         static void Main(string[] args)
         {
             _appDir = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-            _upgDir = $"{_appDir}{_slash}upgrade";
+            _upgDir = $"{_appDir}{_slash}_upgrade";
             _items = new List<string>();
 
             _items.Add($"STARTING UPGRADE IN: {_appDir}");
@@ -24,17 +24,27 @@ namespace Upgrade
             // wait for web app to stop
             System.Threading.Thread.Sleep(3000);
 
-            var files = Directory.GetFiles(_appDir);
-
-            foreach (var file in GetCoreFiles())
+            try
             {
-                ReplaceFile(file);
+                var files = Directory.GetFiles(_appDir);
+
+                foreach (var file in GetCoreFiles())
+                {
+                    ReplaceFile(file);
+                }
+
+                foreach (var dir in GetCoreFolders())
+                {
+                    ReplaceFolder(dir);
+                }
+            }
+            catch (Exception ex)
+            {
+                _items.Add(ex.Message);
             }
 
-            ReplaceFolder($"wwwroot{_slash}admin");
-            ReplaceFolder($"wwwroot{_slash}lib");
-
-            using (StreamWriter writer = new StreamWriter("upgrade.log"))
+            var log = $"upgrade-{DateTime.Now.Year}-{DateTime.Now.Month}-{DateTime.Now.Day}.log";
+            using (StreamWriter writer = new StreamWriter(log))
             {
                 foreach (var item in _items)
                 {
@@ -42,12 +52,14 @@ namespace Upgrade
                 }
             }
 
-            Process p = new Process();
-            p.StartInfo.FileName = "dotnet";
-            p.StartInfo.Arguments = "App.dll";
-            p.StartInfo.UseShellExecute = false;
-            p.StartInfo.CreateNoWindow = false;
-            p.Start();
+            Directory.Delete(_upgDir, true);
+
+            //Process p = new Process();
+            //p.StartInfo.FileName = "dotnet";
+            //p.StartInfo.Arguments = "App.dll";
+            //p.StartInfo.UseShellExecute = false;
+            //p.StartInfo.CreateNoWindow = false;
+            //p.Start();
         }
 
         static void ReplaceFile(string file)
@@ -58,13 +70,13 @@ namespace Upgrade
             {
                 if (File.Exists(oldFile))
                     File.Delete(oldFile);
-                    
+
                 File.Copy(newFile, oldFile);
-                _items.Add($"Replacing {oldFile} with {newFile}");
+                _items.Add($"Replacing file: {oldFile} with {newFile}");
             }
             catch (Exception fe)
             {
-                _items.Add($"Error replacing {oldFile}: {fe.Message}");
+                _items.Add($"Error replacing file: {oldFile}: {fe.Message}");
             }
         }
 
@@ -78,50 +90,34 @@ namespace Upgrade
                     Directory.Delete(oldFolder, true);
 
                 Directory.Move(newFolder, oldFolder);
-                _items.Add($"Replacing {oldFolder} with {newFolder}");
+                _items.Add($"Replacing folder: {oldFolder} with {newFolder}");
             }
             catch (Exception fe)
             {
-                _items.Add($"Error replacing {oldFolder}: {fe.Message}");
+                _items.Add($"Error replacing folder: {oldFolder}: {fe.Message}");
             }
-        }
-
-        static string NameFromPath(string path)
-        {
-            int x = path.LastIndexOf(_slash);
-            string name = path.Substring(x);
-            return name;
         }
 
         static List<string> GetCoreFiles()
         {
-            return new List<string>
+            return ReadFile($"{_upgDir}{_slash}files.txt");
+        }
+
+        static List<string> GetCoreFolders()
+        {
+            return ReadFile($"{_upgDir}{_slash}folders.txt");
+        }
+
+        static List<string> ReadFile(string fileName)
+        {
+            var items = new List<string>();
+            var lines = File.ReadAllLines(fileName);
+
+            for (var i = 0; i < lines.Length; i++)
             {
-                "App.deps.json",
-                "App.dll",
-                "App.pdb",
-                "App.PrecompiledViews.dll",
-                "App.PrecompiledViews.pdb",
-                "App.runtimeconfig.json",
-                "Common.dll",
-                "Core.dll",
-                "Core.pdb",
-                "HtmlAgilityPack.dll",
-                "Markdig.dll",
-                "Microsoft.Data.Sqlite.dll",
-                "Microsoft.EntityFrameworkCore.Sqlite.dll",
-                "Microsoft.SyndicationFeed.ReaderWriter.dll",
-                "ReverseMarkdown.dll",
-                "Serilog.dll",
-                "Serilog.Extensions.Logging.dll",
-                "Serilog.Sinks.File.dll",
-                "Serilog.Sinks.RollingFile.dll",
-                "SQLitePCLRaw.batteries_green.dll",
-                "SQLitePCLRaw.batteries_v2.dll",
-                "SQLitePCLRaw.core.dll",
-                "SQLitePCLRaw.provider.e_sqlite3.dll",
-                "System.Xml.XPath.XmlDocument.dll"
-            };
+                items.Add(lines[i].Trim().Replace("|", _slash));
+            }
+            return items;
         }
     }
 }

@@ -8,6 +8,7 @@ namespace Core.Data
 {
     public class PostModel
     {
+        public BlogItem Blog { get; set; }
         public PostItem Post { get; set; }
         public PostItem Older { get; set; }
         public PostItem Newer { get; set; }
@@ -15,13 +16,20 @@ namespace Core.Data
 
     public class ListModel
     {
-        public IEnumerable<PostItem> Posts { get; set; }
-        public Pager Pager { get; set; }
-
+        public BlogItem Blog { get; set; }
         public Author Author { get; set; } // posts by author
         public string Category { get; set; } // posts by category
 
+        public IEnumerable<PostItem> Posts { get; set; }
+        public Pager Pager { get; set; }
+
         public PostListType PostListType { get; set; }
+    }
+
+    public class PageListModel
+    {
+        public IEnumerable<PostItem> Posts { get; set; }
+        public Pager Pager { get; set; }
     }
 
     public class PostItem : IEquatable<PostItem>
@@ -38,6 +46,7 @@ namespace Core.Data
         public int PostViews { get; set; }
         public double Rating { get; set; }
         public DateTime Published { get; set; }
+        public bool IsPublished { get { return Published > DateTime.MinValue; } }
         public bool Featured { get; set; }
 
         public Author Author { get; set; }
@@ -113,6 +122,17 @@ namespace Core.Data
         public string IsChecked(string status)
         {
             return status == Status ? "checked" : "";
+        }
+    }
+
+    public class CategoryItem: IComparable<CategoryItem>
+    {
+        public string Category { get; set; }
+        public int PostCount { get; set; }
+
+        public int CompareTo(CategoryItem other)
+        {
+            return Category.CompareTo(other.Category);
         }
     }
 

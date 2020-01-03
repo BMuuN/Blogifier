@@ -234,3 +234,8 @@ _Pvt_Extensions
 PublishProfiles/
 
 **/Logs/*
+
+package-lock.json
+
+build/tools
+build/publish

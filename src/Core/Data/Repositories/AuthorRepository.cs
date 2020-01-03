@@ -9,8 +9,8 @@ namespace Core.Data
 {
     public interface IAuthorRepository : IRepository<Author>
     {
-        Task<Author> GetItem(Expression<Func<Author, bool>> predicate);
-        Task<IEnumerable<Author>> GetList(Expression<Func<Author, bool>> predicate, Pager pager);
+        Task<Author> GetItem(Expression<Func<Author, bool>> predicate, bool sanitized = false);
+        Task<IEnumerable<Author>> GetList(Expression<Func<Author, bool>> predicate, Pager pager, bool sanitize = false);
         Task Save(Author author);
         Task Remove(int id);
     }
@@ -24,7 +24,7 @@ namespace Core.Data
             _db = db;
         }
 
-        public async Task<Author> GetItem(Expression<Func<Author, bool>> predicate)
+        public async Task<Author> GetItem(Expression<Func<Author, bool>> predicate, bool sanitized = false)
         {
             try
             {
@@ -33,6 +33,7 @@ namespace Core.Data
                 if (author != null)
                 {
                     author.Avatar = author.Avatar ?? AppSettings.Avatar;
+                    author.Email = sanitized ? Constants.DummyEmail : author.Email;
                 }
 
                 return await Task.FromResult(author);
@@ -43,7 +44,7 @@ namespace Core.Data
             }
         }
 
-        public async Task<IEnumerable<Author>> GetList(Expression<Func<Author, bool>> predicate, Pager pager)
+        public async Task<IEnumerable<Author>> GetList(Expression<Func<Author, bool>> predicate, Pager pager, bool sanitize = false)
         {
             var take = pager.ItemsPerPage == 0 ? 10 : pager.ItemsPerPage;
             var skip = pager.CurrentPage * take - take;
@@ -55,6 +56,23 @@ namespace Core.Data
 
             var list = users.Skip(skip).Take(take).ToList();
 
+            foreach (var item in list)
+            {
+                if (string.IsNullOrEmpty(item.Avatar))
+                    item.Avatar = Constants.DefaultAvatar;
+
+                if (sanitize)
+                    item.Email = Constants.DummyEmail;
+            }
+
+            if (sanitize)
+            {
+                foreach (var item in list)
+                {
+                    item.Email = Constants.DummyEmail;
+                }
+            }
+
             return await Task.FromResult(list);
         }
 
@@ -63,6 +81,7 @@ namespace Core.Data
             if (author.Created == DateTime.MinValue)
             {
                 author.DisplayName = author.AppUserName;
+                author.Avatar = AppSettings.Avatar;
                 author.Created = SystemClock.Now();
                 await _db.Authors.AddAsync(author);
             }
@@ -73,6 +92,7 @@ namespace Core.Data
                 dbAuthor.DisplayName = author.DisplayName;
                 dbAuthor.Avatar = author.Avatar;
                 dbAuthor.Email = author.Email;
+                dbAuthor.Bio = author.Bio;
                 dbAuthor.IsAdmin = author.IsAdmin;
                 dbAuthor.Created = SystemClock.Now();
 

@@ -9,13 +9,13 @@ namespace Core.Services
 {
     public interface INotificationService
     {
-        Task<IEnumerable<Notification>> GetNotifications(int authorId);
+        Task PullSystemNotifications();
         Task<int> AddNotification(AlertType aType, int authorId, string notifier, string content);
     }
 
     public class NotificationService : INotificationService
     {
-        static DateTime _lastChecked;
+        static DateTime _checkPoint;
         IDataService _db;
         IWebService _web;
 
@@ -23,12 +23,16 @@ namespace Core.Services
         {
             _db = db;
             _web = web;
-            _lastChecked = SystemClock.Now();
         }
 
         public async Task<int> AddNotification(AlertType aType, int authorId, string notifier, string content)
         {
-            var existing = _db.Notifications.Single(n => n.Content == content);
+            var existing = _db.Notifications.Single(n => 
+                n.AlertType == aType && 
+                n.Notifier == notifier && 
+                n.Content == content
+            );
+
             if(existing == null)
             {
                 _db.Notifications.Add(new Notification
@@ -45,25 +49,21 @@ namespace Core.Services
             return await Task.FromResult(0);
         }
 
-        public async Task<IEnumerable<Notification>> GetNotifications(int authorId)
+        public async Task PullSystemNotifications()
         {
-            if(SystemClock.Now() >= _lastChecked)
+            if (SystemClock.Now() >= _checkPoint)
             {
-                _lastChecked = SystemClock.Now().AddMinutes(10);
-                var result = await _web.CheckForLatestRelease();
+                _checkPoint = SystemClock.Now().AddMinutes(30);
+                var messages = await _web.GetNotifications();
 
-                if (!string.IsNullOrEmpty(result))
+                if(messages != null && messages.Count > 0)
                 {
-                    await AddNotification(AlertType.Primary, 0, "Github", result);
+                    foreach (var msg in messages)
+                    {
+                        await AddNotification(AlertType.System, 0, "Blogifier", msg);
+                    }
                 }
             }
-
-            var notes = _db.Notifications
-                .Find(n => n.Active && (n.AuthorId == 0 || n.AuthorId == authorId))
-                .OrderByDescending(n => n.DateNotified)
-                .Take(5);
-
-            return await Task.FromResult(notes);
         }
     }
 }
